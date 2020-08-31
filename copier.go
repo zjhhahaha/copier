@@ -7,7 +7,7 @@ import (
 )
 
 // Copy copy things
-func Copy(toValue interface{}, fromValue interface{}) (err error) {
+func Copy(toValue interface{}, fromValue interface{}, ignoreEmpty bool) (err error) {
 	var (
 		isSlice bool
 		amount  = 1
@@ -70,12 +70,12 @@ func Copy(toValue interface{}, fromValue interface{}) (err error) {
 			for _, field := range fromTypeFields {
 				name := field.Name
 
-				if fromField := source.FieldByName(name); fromField.IsValid() {
+				if fromField := source.FieldByName(name); fromField.IsValid() && !shouldIgnore(fromField, ignoreEmpty) {
 					// has field
 					if toField := dest.FieldByName(name); toField.IsValid() {
 						if toField.CanSet() {
 							if !set(toField, fromField) {
-								if err := Copy(toField.Addr().Interface(), fromField.Interface()); err != nil {
+								if err := Copy(toField.Addr().Interface(), fromField.Interface(), ignoreEmpty); err != nil {
 									return err
 								}
 							}
@@ -186,4 +186,24 @@ func set(to, from reflect.Value) bool {
 		}
 	}
 	return true
+}
+
+func shouldIgnore(v reflect.Value, ignoreEmpty bool) bool {
+	if !ignoreEmpty {
+		return true
+	}
+
+	switch v.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return v.Int() == 0
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return v.Uint() == 0
+	case reflect.String:
+		return v.String() == ""
+	case reflect.Ptr, reflect.Slice, reflect.Map, reflect.Interface, reflect.Chan:
+		return v.IsNil()
+	case reflect.Bool:
+		return !v.Bool()
+	}
+	return false
 }
